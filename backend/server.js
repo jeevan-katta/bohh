@@ -2,6 +2,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const path = require("path");
 const connectDB = require("./config/db.js");
 
 dotenv.config();
@@ -9,13 +10,13 @@ connectDB();
 
 const app = express();
 
-app.use(cors({
-  origin: "http://localhost:5173", // Vite default port
+const corsOptions = {
+  origin: process.env.NODE_ENV === "production" ? true : "http://localhost:5173",
   credentials: true,
-}));
-app.use(express.json()); // to accept json data
+};
+app.use(cors(corsOptions));
+app.use(express.json());
 app.use(cookieParser());
-const path = require("path");
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
@@ -31,6 +32,32 @@ app.use("/api/chats", chatRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/calls", callRoutes);
 
+// Health check
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Deployment logic
+const __dirname1 = path.resolve();
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname1, "/frontend/dist")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.resolve(__dirname1, "frontend", "dist", "index.html"));
+  });
+} else {
+  app.get("/", (req, res) => {
+    res.send("API is running..");
+  });
+}
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error("Server Error:", err.message);
+  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  res.status(statusCode).json({ message: err.message });
+});
+
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
@@ -40,7 +67,7 @@ const server = app.listen(PORT, () => {
 const io = require("socket.io")(server, {
   pingTimeout: 60000,
   cors: {
-    origin: "http://localhost:5173",
+    origin: process.env.NODE_ENV === "production" ? true : "http://localhost:5173",
   },
 });
 
@@ -101,45 +128,62 @@ io.on("connection", (socket) => {
 
   // WebRTC Signals
   socket.on("call user", (data) => {
-    if (!onlineUsers.has(data.userToCall)) {
+    const targetSockets = onlineUsers.get(data.userToCall);
+    if (!targetSockets || targetSockets.size === 0) {
        const queues = pendingSignals.get(data.userToCall) || [];
        queues.push({ type: "call user", data: { signal: data.signal, from: data.from, name: data.name, video: data.video } });
        pendingSignals.set(data.userToCall, queues);
     } else {
-       socket.to(data.userToCall).emit("call user", { signal: data.signal, from: data.from, name: data.name, video: data.video });
+       targetSockets.forEach(socketId => {
+           io.to(socketId).emit("call user", { signal: data.signal, from: data.from, name: data.name, video: data.video });
+       });
     }
   });
 
   socket.on("answer call", (data) => {
-    socket.to(data.to).emit("call accepted", { signal: data.signal, from: data.from });
+    const targetSockets = onlineUsers.get(data.to);
+    if (targetSockets) {
+        targetSockets.forEach(socketId => {
+            io.to(socketId).emit("call accepted", { signal: data.signal, from: data.from });
+        });
+    }
   });
 
   socket.on("ice candidate", (data) => {
-    if (!onlineUsers.has(data.to)) {
+    const targetSockets = onlineUsers.get(data.to);
+    if (!targetSockets || targetSockets.size === 0) {
        const queues = pendingSignals.get(data.to) || [];
        queues.push({ type: "ice candidate", data: { candidate: data.candidate, from: data.from } });
        pendingSignals.set(data.to, queues);
     } else {
-       socket.to(data.to).emit("ice candidate", { candidate: data.candidate, from: data.from });
+       targetSockets.forEach(socketId => {
+           io.to(socketId).emit("ice candidate", { candidate: data.candidate, from: data.from });
+       });
     }
   });
 
   socket.on("end call", (to) => {
-    if (!onlineUsers.has(to)) {
+    const targetSockets = onlineUsers.get(to);
+    if (!targetSockets || targetSockets.size === 0) {
        // Target is offline, so delete any pending Call requests so they don't get rung upon next login
        pendingSignals.delete(to);
     } else {
-       socket.to(to).emit("call ended");
+       targetSockets.forEach(socketId => {
+           io.to(socketId).emit("call ended");
+       });
     }
   });
   
   socket.on("missed call notification", (opts) => {
-     if (!onlineUsers.has(opts.to)) {
+     const targetSockets = onlineUsers.get(opts.to);
+     if (!targetSockets || targetSockets.size === 0) {
         const queues = pendingSignals.get(opts.to) || [];
         queues.push({ type: "missed call notification", data: opts });
         pendingSignals.set(opts.to, queues);
      } else {
-        socket.to(opts.to).emit("missed call notification", opts);
+        targetSockets.forEach(socketId => {
+            io.to(socketId).emit("missed call notification", opts);
+        });
      }
   });
 

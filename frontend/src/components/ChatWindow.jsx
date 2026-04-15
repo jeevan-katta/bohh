@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
-import { Send, Phone, Video, Mic } from 'lucide-react';
+import { Send, Phone, Video, Mic, ArrowLeft, MessageCircle } from 'lucide-react';
 import { socket } from '../pages/ChatDashboard';
-import api from '../store/authStore'; // generic axios
+import api from '../store/authStore';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? "" : "http://localhost:5000");
 
-function ChatWindow() {
+function ChatWindow({ onBack }) {
   const { selectedChat, messages, fetchMessages, sendMessage, addMessage, removeMessage, onlineUsers } = useChatStore();
   const user = useAuthStore(state => state.user);
   const [newMessage, setNewMessage] = useState("");
@@ -59,7 +59,7 @@ function ChatWindow() {
     setTyping(false);
 
     const content = newMessage;
-    setNewMessage(""); // Optimistically clear input
+    setNewMessage("");
     const msg = await sendMessage(content, selectedChat._id);
     if(msg) {
         socket.emit("new message", msg);
@@ -86,9 +86,6 @@ function ChatWindow() {
     try {
       await api.delete(`/messages/${msgId}`);
       removeMessage(msgId);
-      // Let other clients know it was deleted? Actually, simple P2P ephemeral means they delete when they listen.
-      // If we want it to vanish from everywhere:
-      // socket.emit("delete message", { msgId, chatId: selectedChat._id });
     } catch (e) {
       console.error(e);
     }
@@ -96,7 +93,6 @@ function ChatWindow() {
 
   const toggleRecording = async () => {
     if (isRecording) {
-      // Stop logic
       mediaRecorderRef.current?.stop();
       setIsRecording(false);
       return;
@@ -140,120 +136,191 @@ function ChatWindow() {
 
   const getSenderName = (chat) => {
     if (chat.isGroupChat) return chat.chatName;
-    return chat.users[0]._id === user._id ? chat.users[1]?.username : chat.users[0]?.username;
+    const otherUser = chat.users.find(u => u && u._id !== user._id);
+    return otherUser ? otherUser.username : 'Deleted User';
+  };
+
+  const getSenderPic = (chat) => {
+    if (chat.isGroupChat) return "https://api.dicebear.com/7.x/identicon/svg?seed=" + chat.chatName;
+    const otherUser = chat.users.find(u => u && u._id !== user._id);
+    return otherUser ? otherUser.profilePic : "https://api.dicebear.com/7.x/avataaars/svg?seed=deleted";
   };
   
   const isOnline = (chat) => {
     if (chat.isGroupChat) return false;
-    const otherUser = chat.users.find(u => u._id !== user._id);
+    const otherUser = chat.users.find(u => u && u._id !== user._id);
     return otherUser ? onlineUsers.includes(otherUser._id) : false;
+  };
+
+  const formatMsgTime = (dateStr) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  // Date separator logic
+  const getDateLabel = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
   };
 
   if (!selectedChat) {
     return (
-      <div className="chat-area" style={{ alignItems: 'center', justifyContent: 'center' }}>
-        <h2 style={{ color: 'var(--text-light)', fontWeight: 300 }}>Select a chat to start messaging</h2>
+      <div className="chat-area">
+        <div className="chat-area-empty">
+          <div className="empty-icon">
+            <MessageCircle size={36} color="var(--primary)" />
+          </div>
+          <h2>Welcome to Bhoh</h2>
+          <p>Select a conversation to start messaging</p>
+        </div>
       </div>
     );
   }
 
+  // Group messages by date
+  let lastDateLabel = '';
+
   return (
     <div className="chat-area">
       {/* Header */}
-      <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#fafafa' }}>
-        <div>
-           <h3 style={{ margin: 0, color: 'var(--primary-dark)' }}>{getSenderName(selectedChat)}</h3>
-           {isOnline(selectedChat) && <div style={{ fontSize: '0.75rem', color: '#4CAF50', fontWeight: 'bold' }}>Online</div>}
+      <div className="chat-header">
+        <div className="header-info">
+          <button className="btn-ghost mobile-back-btn" onClick={onBack}>
+            <ArrowLeft size={20} />
+          </button>
+          <img src={getSenderPic(selectedChat)} alt="" className="header-avatar" />
+          <div>
+            <div className="header-name">{getSenderName(selectedChat)}</div>
+            <div className={`header-status ${isOnline(selectedChat) ? 'online' : 'offline'}`}>
+              {selectedChat.isGroupChat 
+                ? `${selectedChat.users.length} members` 
+                : (isOnline(selectedChat) ? 'Online' : 'Offline')
+              }
+            </div>
+          </div>
         </div>
-        {!selectedChat.isGroupChat && (
-           <div style={{ display: 'flex', gap: '10px' }}>
-             <div 
-               style={{ cursor: 'pointer', color: 'var(--primary-color)', padding: '8px', borderRadius: '50%', background: 'var(--primary-light)', display: 'flex' }}
-               onClick={() => {
-                  const otherUser = selectedChat.users.find(u => u._id !== user._id);
-                  window.dispatchEvent(new CustomEvent('initiate-call', { detail: { userToCall: otherUser, video: true } }));
-               }}
-             >
-                <Video size={20} />
-             </div>
-             <div 
-               style={{ cursor: 'pointer', color: 'var(--primary-color)', padding: '8px', borderRadius: '50%', background: 'var(--primary-light)', display: 'flex' }}
-               onClick={() => {
-                  const otherUser = selectedChat.users.find(u => u._id !== user._id);
-                  window.dispatchEvent(new CustomEvent('initiate-call', { detail: { userToCall: otherUser, video: false } }));
-               }}
-             >
-                <Phone size={20} />
-             </div>
-           </div>
-        )}
+        <div className="header-actions">
+          <button 
+            className="btn-icon primary"
+            onClick={() => {
+              if (selectedChat.isGroupChat) {
+                  const usersToCall = selectedChat.users.filter(u => u && u._id !== user._id);
+                  if(usersToCall.length > 0) window.dispatchEvent(new CustomEvent('initiate-call', { detail: { usersToCall, video: true } }));
+              } else {
+                  const otherUser = selectedChat.users.find(u => u && u._id !== user._id);
+                  if(otherUser) window.dispatchEvent(new CustomEvent('initiate-call', { detail: { userToCall: otherUser, video: true } }));
+              }
+            }}
+            title={selectedChat.isGroupChat ? "Group Video Call" : "Video Call"}
+          >
+            <Video size={18} />
+          </button>
+          <button 
+            className="btn-icon primary"
+            onClick={() => {
+              if (selectedChat.isGroupChat) {
+                  const usersToCall = selectedChat.users.filter(u => u && u._id !== user._id);
+                  if(usersToCall.length > 0) window.dispatchEvent(new CustomEvent('initiate-call', { detail: { usersToCall, video: false } }));
+              } else {
+                  const otherUser = selectedChat.users.find(u => u && u._id !== user._id);
+                  if(otherUser) window.dispatchEvent(new CustomEvent('initiate-call', { detail: { userToCall: otherUser, video: false } }));
+              }
+            }}
+            title={selectedChat.isGroupChat ? "Group Audio Call" : "Audio Call"}
+          >
+            <Phone size={18} />
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, padding: '24px', overflowY: 'auto', backgroundColor: '#fff' }}>
+      <div className="messages-container">
         {messages.map((m, i) => {
-          const isSent = m.sender._id === user._id;
+          const isSent = m.sender && m.sender._id === user._id;
+          const dateLabel = getDateLabel(m.createdAt);
+          let showDateSeparator = false;
+          if (dateLabel !== lastDateLabel) {
+            showDateSeparator = true;
+            lastDateLabel = dateLabel;
+          }
+
           return (
-            <div key={m._id || i} className={`message ${isSent ? 'sent' : 'received'}`}>
-              {!isSent && <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginLeft: '4px', marginBottom: '2px' }}>{m.sender.username}</span>}
-              <div className="bubble" style={m.isAudio ? { padding: '8px', background: 'transparent' } : {}}>
-                {m.isAudio ? (
-                  <audio 
-                     src={`${BACKEND_URL}${m.content}`} 
-                     controls 
-                     controlsList="nodownload"
-                     onPlay={(e) => {
-                        // Immediately apply deleting logic when they start listening or end listening.
-                        // User said "listened voice messages should deleted immediately". We'll do it onEnded.
-                     }}
-                     onEnded={() => handleAudioEnd(m._id)}
-                  />
-                ) : (
-                  m.content
+            <React.Fragment key={m._id || i}>
+              {showDateSeparator && (
+                <div style={{ 
+                  textAlign: 'center', margin: '20px 0 12px', 
+                  fontSize: '0.6875rem', color: 'var(--text-muted)',
+                  fontWeight: 600, letterSpacing: '0.05em'
+                }}>
+                  {dateLabel}
+                </div>
+              )}
+              <div className={`message ${isSent ? 'sent' : 'received'}`}>
+                {!isSent && selectedChat.isGroupChat && (
+                  <span className="sender-name">{m.sender.username}</span>
                 )}
+                <div className={`bubble${m.isAudio ? ' audio-bubble' : ''}`}>
+                  {m.isAudio ? (
+                    <audio 
+                      src={`${BACKEND_URL}${m.content}`} 
+                      controls 
+                      controlsList="nodownload"
+                      onEnded={() => handleAudioEnd(m._id)}
+                    />
+                  ) : (
+                    m.content
+                  )}
+                </div>
+                <span className="time-stamp">{formatMsgTime(m.createdAt)}</span>
               </div>
-            </div>
+            </React.Fragment>
           );
         })}
         {isTyping && (
-          <div className="message received">
-             <div className="bubble" style={{ backgroundColor: '#e2e8f0', color: '#64748b', fontStyle: 'italic', padding: '8px 16px' }}>
-                Typing...
-             </div>
+          <div className="typing-indicator">
+            <span className="dot"></span>
+            <span className="dot"></span>
+            <span className="dot"></span>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <div style={{ padding: '20px', borderTop: '1px solid var(--border-color)', backgroundColor: '#fafafa', display: 'flex', gap: '12px' }}>
-        <form onSubmit={handleSend} style={{ display: 'flex', flex: 1, gap: '12px' }}>
+      <div className="message-input-area">
+        <form onSubmit={handleSend}>
           <input
             className="input-field"
-            style={{ borderRadius: '24px' }}
             type="text"
-            placeholder="Type a message..."
+            placeholder={isRecording ? "Recording..." : "Type a message..."}
             value={newMessage}
             onChange={typingHandler}
             disabled={isRecording}
           />
-          <button type="submit" className="btn" disabled={isRecording} style={{ minWidth: '50px', width: '50px', height: '50px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
-            <Send size={20} />
+          <button 
+            type="submit" 
+            className="btn-icon primary" 
+            disabled={isRecording || !newMessage.trim()}
+            title="Send"
+          >
+            <Send size={18} />
           </button>
         </form>
-        <button 
-           type="button" 
-           className="btn" 
-           onClick={toggleRecording} 
-           style={{ 
-             minWidth: '50px', width: '50px', height: '50px', padding: 0, display: 'flex', 
-             alignItems: 'center', justifyContent: 'center', borderRadius: '50%',
-             backgroundColor: isRecording ? '#F44336' : 'var(--primary-color)',
-             animation: isRecording ? 'pulse 1.5s infinite' : 'none'
-           }}
-        >
-          <Mic size={20} />
-        </button>
+        <div className={`record-btn${isRecording ? ' recording' : ''}`}>
+          <button 
+            type="button" 
+            className={`btn-icon ${isRecording ? 'danger' : 'primary'}`}
+            onClick={toggleRecording}
+            title={isRecording ? "Stop Recording" : "Record Voice"}
+          >
+            <Mic size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

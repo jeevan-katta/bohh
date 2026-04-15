@@ -11,35 +11,66 @@ function CallHistoryModal({ onClose }) {
     fetchCallHistory();
   }, [fetchCallHistory]);
 
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diffDays === 1) return 'Yesterday';
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
   return (
-    <div className="fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div className="card" style={{ width: '400px', display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '80vh' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ color: 'var(--primary-dark)', margin: 0 }}>Call History</h2>
-          <X size={24} style={{ cursor: 'pointer', color: 'var(--text-light)' }} onClick={onClose} />
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal-content card fade-in-scale">
+        <div className="modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ 
+              width: 36, height: 36, borderRadius: 'var(--radius-md)',
+              background: 'var(--primary-light)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Phone size={18} color="var(--primary)" />
+            </div>
+            <h2>Call History</h2>
+          </div>
+          <button className="btn-ghost" onClick={onClose}>
+            <X size={20} />
+          </button>
         </div>
-        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+        <div className="call-history-list">
           {calls.length === 0 ? (
-            <p style={{ textAlign: 'center', color: 'var(--text-light)' }}>No recent calls</p>
+            <div className="no-results" style={{ padding: '40px 0' }}>
+              <Phone size={32} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.3 }} />
+              No recent calls
+            </div>
           ) : (
             calls.map(c => {
-               const isCaller = c.caller._id === user._id;
-               const otherUser = isCaller ? c.receiver : c.caller;
-               return (
-                 <div key={c._id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '12px', backgroundColor: '#f9f9f9' }}>
-                    <img src={otherUser.profilePic} style={{ width: '40px', height: '40px', borderRadius: '50%' }} />
-                    <div style={{ flex: 1 }}>
-                       <div style={{ fontWeight: 'bold', color: c.status === 'missed' ? 'red' : 'inherit' }}>{otherUser.username}</div>
-                       <div style={{ fontSize: '0.8rem', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {c.status === 'missed' || c.status === 'rejected' ? <PhoneMissed size={12} color="red"/> : (isCaller ? <Phone size={12} /> : <PhoneCall size={12} />)}
-                          {c.type === 'video' ? 'Video' : 'Audio'} Call • <span style={{ fontStyle: 'italic' }}>{c.status}</span>
-                       </div>
+              const isCaller = c.caller._id === user._id;
+              const otherUser = isCaller ? c.receiver : c.caller;
+              const isMissed = c.status === 'missed' || c.status === 'rejected';
+              
+              return (
+                <div key={c._id} className="call-history-item">
+                  <img src={otherUser.profilePic} alt="" />
+                  <div className="call-info">
+                    <div className={`call-name${isMissed ? ' missed' : ''}`}>
+                      {otherUser.username}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: '#999' }}>
-                       {new Date(c.createdAt).toLocaleDateString()}
+                    <div className="call-detail">
+                      {isMissed 
+                        ? <PhoneMissed size={12} color="var(--danger)" /> 
+                        : (isCaller ? <Phone size={12} /> : <PhoneCall size={12} />)
+                      }
+                      {c.type === 'video' ? 'Video' : 'Audio'} Call
+                      <span style={{ opacity: 0.6 }}>•</span>
+                      <span style={{ fontStyle: 'italic', textTransform: 'capitalize' }}>{c.status}</span>
                     </div>
-                 </div>
-               )
+                  </div>
+                  <span className="call-date">{formatDate(c.createdAt)}</span>
+                </div>
+              );
             })
           )}
         </div>

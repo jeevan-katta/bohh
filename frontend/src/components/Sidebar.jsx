@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useChatStore } from '../store/chatStore';
-import api from '../store/authStore'; // For the generic axios instance
-import { LogOut, Search, Settings, Plus, History } from 'lucide-react';
+import api from '../store/authStore';
+import { LogOut, Search, Settings, Plus, History, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import GroupChatModal from './GroupChatModal';
 import CallHistoryModal from './CallHistoryModal';
@@ -50,99 +50,139 @@ function Sidebar() {
 
   const getSenderName = (chat) => {
     if (chat.isGroupChat) return chat.chatName;
-    return chat.users[0]._id === user._id ? chat.users[1]?.username : chat.users[0]?.username;
+    const otherUser = chat.users.find(u => u && u._id !== user._id);
+    return otherUser ? otherUser.username : 'Deleted User';
   };
   
   const isOnline = (chat) => {
     if (chat.isGroupChat) return false;
-    const otherUser = chat.users.find(u => u._id !== user._id);
+    const otherUser = chat.users.find(u => u && u._id !== user._id);
     return otherUser ? onlineUsers.includes(otherUser._id) : false;
   };
   
   const getSenderPic = (chat) => {
     if (chat.isGroupChat) return "https://api.dicebear.com/7.x/identicon/svg?seed=" + chat.chatName;
-    return chat.users[0]._id === user._id ? chat.users[1]?.profilePic : chat.users[0]?.profilePic;
+    const otherUser = chat.users.find(u => u && u._id !== user._id);
+    return otherUser ? otherUser.profilePic : "https://api.dicebear.com/7.x/avataaars/svg?seed=deleted";
+  };
+
+  const formatTime = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else if (diffDays < 7) {
+      return d.toLocaleDateString([], { weekday: 'short' });
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
   return (
     <div className="sidebar">
-      <div style={{ padding: '20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src={user?.profilePic} alt="profile" style={{ width: '40px', height: '40px', borderRadius: '50%' }} />
-          <strong style={{ color: 'var(--primary-dark)' }}>{user?.username}</strong>
+      {/* Header */}
+      <div className="sidebar-header">
+        <div className="user-info">
+          <img src={user?.profilePic} alt="profile" className="user-avatar" />
+          <span className="user-name">{user?.username}</span>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <History size={20} style={{ cursor: 'pointer', color: 'var(--text-light)' }} onClick={() => setIsHistoryOpen(true)} />
-          <Plus size={20} style={{ cursor: 'pointer', color: 'var(--primary-dark)' }} onClick={() => setIsGroupModalOpen(true)} />
-          <Settings size={20} style={{ cursor: 'pointer', color: 'var(--text-light)' }} onClick={() => navigate('/profile')} />
-          <LogOut size={20} style={{ cursor: 'pointer', color: 'var(--danger-color)' }} onClick={logout} />
+        <div className="header-actions">
+          <button className="btn-ghost" onClick={() => setIsHistoryOpen(true)} title="Call History">
+            <History size={18} />
+          </button>
+          <button className="btn-ghost" onClick={() => setIsGroupModalOpen(true)} title="New Group">
+            <Plus size={18} />
+          </button>
+          <button className="btn-ghost" onClick={() => navigate('/profile')} title="Settings">
+            <Settings size={18} />
+          </button>
+          <button className="btn-ghost" onClick={logout} title="Logout" style={{ color: 'var(--danger)' }}>
+            <LogOut size={18} />
+          </button>
         </div>
       </div>
 
-      <div style={{ padding: '16px' }}>
-        <div style={{ position: 'relative' }}>
-          <Search size={18} style={{ position: 'absolute', top: '12px', left: '12px', color: 'var(--text-light)' }} />
+      {/* Search */}
+      <div className="sidebar-search">
+        <div className="search-wrapper">
+          <Search size={16} className="search-icon" />
           <input
             type="text"
             className="input-field"
             placeholder="Search users..."
-            style={{ paddingLeft: '40px' }}
             value={search}
             onChange={handleSearch}
           />
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      {/* Chat List */}
+      <div className="sidebar-chats">
         {isSearching ? (
           <div>
+            <div className="sidebar-section-label">Search Results</div>
             {searchResults.map(u => (
               <div 
                 key={u._id} 
+                className="search-result-item"
                 onClick={() => handleAccessChat(u._id)}
-                style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0' }}
               >
-                <img src={u.profilePic} style={{ width: '36px', height: '36px', borderRadius: '50%' }} alt="avatar" />
+                <img src={u.profilePic} alt="avatar" />
                 <span>{u.username}</span>
               </div>
             ))}
-            {searchResults.length === 0 && <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-light)' }}>No users found</div>}
+            {searchResults.length === 0 && (
+              <div className="no-results">No users found</div>
+            )}
           </div>
         ) : (
           <div>
-            <div style={{ padding: '10px 20px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-light)', textTransform: 'uppercase' }}>Recent Chats</div>
-            {chats.map(chat => (
-              <div 
-                key={chat._id} 
-                onClick={() => setSelectedChat(chat)}
-                style={{ 
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px', cursor: 'pointer', 
-                  backgroundColor: selectedChat?._id === chat._id ? 'var(--primary-light)' : 'transparent',
-                  transition: 'background 0.2s',
-                  borderBottom: '1px solid #f9f9f9'
-                }}
-              >
-                <div style={{ position: 'relative' }}>
-                  <img src={getSenderPic(chat)} style={{ width: '45px', height: '45px', borderRadius: '50%' }} alt="avatar" />
-                  {isOnline(chat) && (
-                    <div style={{ position: 'absolute', bottom: '0', right: '0', width: '12px', height: '12px', backgroundColor: '#4CAF50', border: '2px solid white', borderRadius: '50%' }}></div>
+            <div className="sidebar-section-label">Messages</div>
+            {chats.length === 0 && (
+              <div className="no-results" style={{ padding: '40px 20px' }}>
+                <MessageCircle size={32} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.3 }} />
+                No conversations yet.<br/>Search for a user to start chatting.
+              </div>
+            )}
+            {chats.map(chat => {
+              const isUnread = chat.latestMessage?.readBy 
+                && !chat.latestMessage.readBy.includes(user._id) 
+                && chat.latestMessage.sender._id !== user._id;
+
+              return (
+                <div 
+                  key={chat._id} 
+                  className={`chat-item${selectedChat?._id === chat._id ? ' active' : ''}`}
+                  onClick={() => setSelectedChat(chat)}
+                >
+                  <div className="avatar-wrapper">
+                    <img src={getSenderPic(chat)} alt="avatar" />
+                    {isOnline(chat) && <div className="online-dot"></div>}
+                  </div>
+                  <div className="chat-meta">
+                    <div className="chat-name">{getSenderName(chat)}</div>
+                    {chat.latestMessage && (
+                      <div className={`chat-preview${isUnread ? ' unread' : ''}`}>
+                        {chat.latestMessage.isAudio 
+                          ? '🎵 Voice Message' 
+                          : `${chat.latestMessage.sender.username}: ${chat.latestMessage.content}`
+                        }
+                      </div>
+                    )}
+                  </div>
+                  {chat.latestMessage && (
+                    <span className="chat-time">
+                      {formatTime(chat.latestMessage.createdAt || chat.updatedAt)}
+                    </span>
                   )}
                 </div>
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                    <div style={{ fontWeight: '600', color: 'var(--text-dark)' }}>{getSenderName(chat)}</div>
-                    {chat.latestMessage && (
-                        <div style={{ 
-                            fontSize: '0.8rem', 
-                            color: chat.latestMessage.readBy && !chat.latestMessage.readBy.includes(user._id) && chat.latestMessage.sender._id !== user._id ? 'var(--primary-dark)' : 'var(--text-light)', 
-                            fontWeight: chat.latestMessage.readBy && !chat.latestMessage.readBy.includes(user._id) && chat.latestMessage.sender._id !== user._id ? 'bold' : 'normal',
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' 
-                        }}>
-                            {chat.latestMessage.sender.username}: {chat.latestMessage.isAudio ? "🎵 Audio Message" : chat.latestMessage.content}
-                        </div>
-                    )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

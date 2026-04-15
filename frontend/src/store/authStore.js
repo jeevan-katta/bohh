@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import axios from 'axios';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? "" : "http://localhost:5000");
 
 const api = axios.create({
   baseURL: `${BACKEND_URL}/api`, // dynamic production host or local
@@ -40,6 +40,17 @@ export const useAuthStore = create((set) => ({
       set({ user: null });
     } catch (error) {
       console.error(error);
+    }
+  },
+
+  deleteAccount: async () => {
+    try {
+      await api.delete('/users');
+      localStorage.removeItem('userInfo');
+      set({ user: null });
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: error.response?.data?.message || 'Failed to delete account' };
     }
   },
 }));

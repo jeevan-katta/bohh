@@ -17,11 +17,27 @@ const registerUser = async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(password, salt);
 
+  // Generate default avataaars avatar
+  const defaultConfig = {
+    seed: username,
+    top: 'shortFlat',
+    eyes: 'default',
+    eyebrows: 'default',
+    mouth: 'smile',
+    clothing: 'hoodie',
+    facialHair: '',
+    accessories: '',
+    skinColor: 'edb98a',
+    hairColor: '4a2912',
+    clothesColor: '3f51b5',
+  };
+
   const user = await User.create({
     username,
     email,
     password: hashedPassword,
-    profilePic: `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`,
+    profilePic: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}&top=shortFlat&eyes=default&mouth=smile&clothing=hoodie&skinColor=edb98a&hairColor=4a2912&clothesColor=3f51b5&facialHairProbability=0&accessoriesProbability=0&backgroundColor=transparent`,
+    avatarConfig: defaultConfig,
   });
 
   if (user) {
@@ -31,6 +47,7 @@ const registerUser = async (req, res) => {
       username: user.username,
       email: user.email,
       profilePic: user.profilePic,
+      avatarConfig: user.avatarConfig,
     });
   } else {
     res.status(400).json({ message: "Invalid user data" });

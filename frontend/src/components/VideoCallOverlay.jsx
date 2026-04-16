@@ -384,6 +384,8 @@ function VideoCallOverlay() {
   const activePeers = Object.entries(peersUI);
   const getInitial = (name) => (name || '?').charAt(0).toUpperCase();
 
+  const isPipMode = callActive && activePeers.length === 1;
+
   return (
     <div className="call-overlay fade-in">
       {/* Top Header (Hardware Toggles) */}
@@ -409,7 +411,7 @@ function VideoCallOverlay() {
       </div>
 
       {/* Main Grid Floor */}
-      <div className="call-grid">
+      <div className={`call-grid${isPipMode ? ' pip-mode' : ''}`}>
         {/* My Video */}
         <div className="call-tile self">
           <AudioVisualizerOverlay stream={localStreamObj} />

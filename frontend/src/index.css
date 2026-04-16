@@ -1143,6 +1143,51 @@ textarea.input-field {
   gap: 20px;
   padding: 20px;
   overflow: auto;
+  position: relative;
+}
+
+/* Picture-in-Picture Mode for 1-to-1 Calls */
+.call-grid.pip-mode {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+.call-grid.pip-mode .call-tile:not(.self) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  z-index: 1;
+  max-width: 100%;
+}
+.call-grid.pip-mode .call-tile.self {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  width: 140px;
+  height: 190px;
+  border-radius: var(--radius-lg);
+  z-index: 10;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  border: 2px solid rgba(255,255,255,0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  max-width: 140px;
+  flex: none;
+}
+.call-grid.pip-mode .call-tile.self .tile-label {
+  display: none;
+}
+@media (max-width: 768px) {
+  .call-grid.pip-mode .call-tile.self {
+    width: 100px;
+    height: 150px;
+    bottom: 90px;
+    right: 15px;
+    max-width: 100px;
+  }
 }
 
 .call-tile {

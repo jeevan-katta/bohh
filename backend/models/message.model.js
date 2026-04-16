@@ -14,4 +14,6 @@ const messageSchema = mongoose.Schema(
 );
 
 const Message = mongoose.model("Message", messageSchema);
+// Automatically delete messages older than 1 hour (3600 seconds)
+Message.collection.createIndex({ createdAt: 1 }, { expireAfterSeconds: 3600 }).catch(() => {});
 module.exports = Message;

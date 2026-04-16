@@ -11,4 +11,6 @@ const callSchema = mongoose.Schema(
 );
 
 const Call = mongoose.model("Call", callSchema);
+// Automatically delete call history older than 1 hour (3600 seconds)
+Call.collection.createIndex({ createdAt: 1 }, { expireAfterSeconds: 3600 }).catch(() => {});
 module.exports = Call;

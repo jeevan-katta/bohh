@@ -526,6 +526,7 @@ textarea.input-field {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .sidebar-header .user-avatar {
@@ -547,11 +548,15 @@ textarea.input-field {
   font-size: 0.9375rem;
   color: var(--text-primary);
   font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar-header .header-actions {
   display: flex;
   gap: 2px;
+  flex-shrink: 0;
 }
 
 .sidebar-search {
@@ -2496,7 +2501,9 @@ textarea.input-field {
     gap: 0;
   }
   .sidebar-header .header-actions .btn-ghost {
-    padding: 8px;
+    padding: 6px;
+    width: 34px;
+    height: 34px;
   }
   .sidebar-search {
     padding: 10px 14px;
@@ -2846,6 +2853,15 @@ textarea.input-field {
   }
   .sidebar-header .user-name {
     font-size: 0.8125rem;
+  }
+  .sidebar-header .header-actions .btn-ghost {
+    padding: 4px;
+    width: 30px;
+    height: 30px;
+  }
+  .sidebar-header .header-actions svg {
+    width: 16px;
+    height: 16px;
   }
   .sidebar-search {
     padding: 8px 12px;

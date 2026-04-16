@@ -3,10 +3,16 @@ const { protect } = require("../middleware/authMiddleware.js");
 const { allMessages, sendMessage, sendAudioMessage, deleteMessage, markAsRead } = require("../controllers/message.controller.js");
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
+
+const uploadDir = path.join(__dirname, '../uploads/');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../uploads/'))
+    cb(null, uploadDir)
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + '-' + file.originalname)

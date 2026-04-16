@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { socket } from '../pages/ChatDashboard';
 import { useAuthStore } from '../store/authStore';
 import { useCallStore } from '../store/callStore';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Settings, UserPlus, X } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Settings, UserPlus, X, Volume2, Volume1 } from 'lucide-react';
 import api from '../store/authStore';
 
 function AudioVisualizerOverlay({ stream }) {
@@ -67,6 +67,7 @@ function VideoCallOverlay() {
   const [camEnabled, setCamEnabled] = useState(true);
   const [audioOutputs, setAudioOutputs] = useState([]);
   const [selectedOutput, setSelectedOutput] = useState('');
+  const [isLoudspeaker, setIsLoudspeaker] = useState(false);
   
   // Add member states
   const [showAddMember, setShowAddMember] = useState(false);
@@ -215,6 +216,40 @@ function VideoCallOverlay() {
            setCamEnabled(videoTrack.enabled);
         }
      }
+  };
+
+  const toggleSpeaker = () => {
+    const nextState = !isLoudspeaker;
+    setIsLoudspeaker(nextState);
+    if (!audioOutputs.length) return;
+    
+    // Attempt to match speakerphone vs earpiece by label
+    let targetDevice = null;
+    if (nextState) { // Loudspeaker
+       targetDevice = audioOutputs.find(d => d.label.toLowerCase().includes('speaker')) || audioOutputs[audioOutputs.length - 1];
+    } else { // Small speaker (earpiece)
+       targetDevice = audioOutputs.find(d => d.label.toLowerCase().includes('earpiece') || d.label.toLowerCase().includes('default')) || audioOutputs[0];
+    }
+    
+    if (targetDevice) {
+       setSelectedOutput(targetDevice.deviceId);
+       Object.values(userVideos.current).forEach(videoEl => {
+         if (videoEl && typeof videoEl.setSinkId === 'function') {
+           videoEl.setSinkId(targetDevice.deviceId).catch(e => console.log('Sink API error', e));
+         }
+       });
+    } else {
+       // If browsers don't expose labels, try toggling first and last output array items
+       const fallbackDevice = nextState ? audioOutputs[audioOutputs.length - 1] : audioOutputs[0];
+       if (fallbackDevice) {
+          setSelectedOutput(fallbackDevice.deviceId);
+          Object.values(userVideos.current).forEach(videoEl => {
+            if (videoEl && typeof videoEl.setSinkId === 'function') {
+              videoEl.setSinkId(fallbackDevice.deviceId).catch(e => console.log('Sink API error', e));
+            }
+          });
+       }
+    }
   };
 
   const handleSearch = async (term) => {
@@ -460,6 +495,9 @@ function VideoCallOverlay() {
                 {camEnabled ? <Video size={22} /> : <VideoOff size={22} />}
               </button>
             )}
+            <button className={`btn-icon glass${!isLoudspeaker ? ' active' : ''}`} onClick={toggleSpeaker} title={isLoudspeaker ? 'Switch to small speaker' : 'Switch to loudspeaker'}>
+              {isLoudspeaker ? <Volume2 size={22} /> : <Volume1 size={22} />}
+            </button>
             <button className="btn-icon glass active" onClick={endCall} title="End Call">
               <PhoneOff size={22} />
             </button>

@@ -9,9 +9,9 @@ const registerUser = async (req, res) => {
     return res.status(400).json({ message: "Please fill in all fields" });
   }
 
-  const userExists = await User.findOne({ $or: [{ email }, { username }] });
+  const userExists = await User.findOne({ username });
   if (userExists) {
-    return res.status(400).json({ message: "User already exists" });
+    return res.status(400).json({ message: "Username already taken" });
   }
 
   const salt = await bcrypt.genSalt(10);
